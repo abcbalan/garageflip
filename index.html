@@ -33,11 +33,6 @@
       position: relative;
       margin: 0 auto;
     }
-    .mobile-screen {
-      height: 100%;
-      overflow-y: auto;
-      background: #f9fafb;
-    }
   </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 antialiased min-h-screen">
@@ -118,7 +113,7 @@
 
       <!-- ACTIVE FILTER SUMMARY BAR -->
       <div class="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-2">
-        <div id="resultsCount">Loading cars...</div>
+        <div id="resultsCount">Loading cars from database...</div>
         <button onclick="resetFilters()" class="text-green-600 hover:underline font-medium">Reset Filters</button>
       </div>
     </div>
@@ -189,11 +184,10 @@
           <textarea required id="newNotes" rows="3" placeholder="Describe the fixes executed in your shop..." class="w-full p-2 border rounded-lg"></textarea>
         </div>
 
-        <!-- LEGAL DECLARATION -->
         <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
           <label class="flex items-start space-x-2">
             <input required type="checkbox" class="mt-0.5 rounded text-green-600 focus:ring-green-500">
-            <span><strong>Legal Ownership Declaration:</strong> I confirm this vehicle is fully owned by this garage.</span>
+            <span><strong>Legal Ownership Declaration:</strong> I confirm this vehicle is fully owned by this garage or has been processed through statutory uncollected asset procedures.</span>
           </label>
         </div>
 
@@ -203,19 +197,20 @@
   </div>
 
   <script>
+    // SUPABASE CREDENTIALS
     const SUPABASE_URL = 'https://idapulgrzglnadbpzhpv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkYXB1bGdyemdsbmFkYnB6aHB2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5ODQzNjIsImV4cCI6MjEwNzU2MDM2Mn0.WEOzuH2NU7ioqTdcYCa3scp-oqPsu2791aFfTFHa-3g';
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let allCars = [];
     let isMobileView = false;
 
+    // FETCH CARS FROM DATABASE
     async function fetchCars() {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('cars')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('id', { ascending: false });
 
       if (error) {
         console.error('Error fetching cars:', error);
@@ -242,12 +237,11 @@
       }
 
       carsToRender.forEach(car => {
-        const defaultImg = "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80";
         const card = document.createElement('div');
         card.className = "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition flex flex-col";
         card.innerHTML = `
           <div class="relative h-48 overflow-hidden bg-gray-100">
-            <img src="${car.image || defaultImg}" alt="${car.title}" class="w-full h-full object-cover">
+            <img src="${car.image || 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=600&q=80'}" alt="${car.title}" class="w-full h-full object-cover">
             <span class="absolute top-2 left-2 bg-slate-900/80 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm">
               <i class="fas fa-gas-pump text-green-400 mr-1"></i>${car.fuel}
             </span>
@@ -275,7 +269,7 @@
 
             <div>
               <div class="flex items-center justify-between text-xs border-t pt-2.5 text-gray-500">
-                <span class="font-medium text-gray-800"><i class="fas fa-store mr-1 text-slate-400"></i>${car.garage || "Local Garage"}</span>
+                <span class="font-medium text-gray-800"><i class="fas fa-store mr-1 text-slate-400"></i>${car.garage || 'Verified Garage'}</span>
                 <span class="text-amber-600 font-bold">5.0 ★</span>
               </div>
               
@@ -296,10 +290,10 @@
       const userPostcode = document.getElementById('postcodeInput').value.toUpperCase() || "CV1 2WT";
 
       const filtered = allCars.filter(car => {
-        const matchesRadius = (car.distance_miles || 5) <= radius;
+        const dist = car.distance_miles || 5;
+        const matchesRadius = dist <= radius;
         const matchesFuel = (fuel === 'ALL') || (car.fuel === fuel);
-        const matchesKeyword = (car.title && car.title.toLowerCase().includes(keyword)) || 
-                               (car.fixes && car.fixes.toLowerCase().includes(keyword));
+        const matchesKeyword = (car.title && car.title.toLowerCase().includes(keyword)) || (car.fixes && car.fixes.toLowerCase().includes(keyword));
         return matchesRadius && matchesFuel && matchesKeyword;
       });
 
@@ -319,17 +313,15 @@
       const car = allCars.find(c => c.id === id);
       if (!car) return;
 
-      const defaultImg = "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80";
-
       document.getElementById('modalTitle').innerText = car.title;
       document.getElementById('modalBody').innerHTML = `
-        <img src="${car.image || defaultImg}" class="w-full h-48 object-cover rounded-xl mb-3">
+        <img src="${car.image || 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=600&q=80'}" class="w-full h-48 object-cover rounded-xl mb-3">
         <div class="flex justify-between items-center bg-green-50 p-3 rounded-lg border border-green-200">
           <div>
             <span class="text-xs text-green-800 uppercase font-bold tracking-wide">Direct Garage Price</span>
             <div class="text-2xl font-bold text-green-700">£${Number(car.price).toLocaleString()}</div>
           </div>
-          <span class="text-xs bg-green-200 text-green-900 font-semibold px-2.5 py-1 rounded-full">3 Months Warranty</span>
+          <span class="text-xs bg-green-200 text-green-900 font-semibold px-2.5 py-1 rounded-full">3 Months Garage Warranty</span>
         </div>
 
         <div class="space-y-2 text-sm text-gray-700">
@@ -339,10 +331,10 @@
 
         <div class="border-t pt-3 flex items-center justify-between">
           <div>
-            <div class="font-bold text-gray-900">${car.garage || "Local Garage"}</div>
-            <div class="text-xs text-gray-500"><i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>${car.postcode}</div>
+            <div class="font-bold text-gray-900">${car.garage || 'Verified Garage'}</div>
+            <div class="text-xs text-gray-500"><i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>${car.postcode} (${car.distance_miles || 5} miles away)</div>
           </div>
-          <button onclick="alert('Connecting to Garage...')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-lg shadow">
+          <button onclick="alert('Connecting to Garage Phone: 024 7600 1122')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-lg shadow">
             <i class="fas fa-phone-alt mr-1"></i> Call Garage
           </button>
         </div>
@@ -358,12 +350,12 @@
       document.getElementById(id).classList.add('hidden');
     }
 
+    // POST CAR DIRECTLY TO SUPABASE
     async function handleNewPost(e) {
       e.preventDefault();
-      
       const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
       submitBtn.innerText = "Publishing...";
+      submitBtn.disabled = true;
 
       const newCar = {
         title: document.getElementById('newTitle').value,
@@ -377,18 +369,21 @@
         image: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80"
       };
 
-      const { data, error } = await supabase.from('cars').insert([newCar]);
+      const { data, error } = await supabaseClient
+        .from('cars')
+        .insert([newCar]);
 
-      submitBtn.disabled = false;
       submitBtn.innerText = "Publish Listing";
+      submitBtn.disabled = false;
 
       if (error) {
-        alert('Error saving car: ' + error.message);
-      } else {
-        closeModal('postModal');
-        fetchCars();
-        alert('Vehicle posted successfully to GarageFlip database!');
+        alert('Error saving to database: ' + error.message);
+        return;
       }
+
+      closeModal('postModal');
+      await fetchCars();
+      alert('Vehicle posted successfully and saved to database!');
     }
 
     function toggleMobileView() {
@@ -409,6 +404,7 @@
       }
     }
 
+    // INITIAL LOAD FROM SUPABASE
     document.addEventListener('DOMContentLoaded', fetchCars);
   </script>
 </body>
