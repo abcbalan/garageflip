@@ -50,10 +50,10 @@
           <i id="viewIcon" class="fas fa-mobile-alt text-green-400"></i>
           <span id="viewText">Switch to Mobile Frame View</span>
         </button>
-        <button onclick="openPostModal()" class="bg-green-600 hover:bg-green-500 text-white font-medium text-xs md:text-sm px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 shadow transition">
-          <i class="fas fa-plus-circle"></i>
-          <span>Post Fixed Car</span>
-        </button>
+
+        <div id="authNavButtons" class="flex items-center space-x-2">
+          <!-- Populated dynamically by JS -->
+        </div>
       </div>
     </div>
   </header>
@@ -70,7 +70,7 @@
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Location / Postcode</label>
           <div class="relative">
             <i class="fas fa-map-marker-alt absolute left-3 top-3 text-gray-400"></i>
-            <input type="text" id="postcodeInput" placeholder="e.g. CV1 2WT" value="CV1 2WT" oninput="applyFilters()" class="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg">
+            <input type="text" id="postcodeInput" placeholder="e.g. CV1 2WT" value="CV1 2WT" onchange="handlePostcodeChange()" class="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg">
           </div>
         </div>
 
@@ -137,6 +137,31 @@
     </div>
   </div>
 
+  <!-- AUTHENTICATION MODAL (LOGIN / SIGNUP) -->
+  <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <h3 class="font-bold text-lg" id="authModalTitle">Garage Login</h3>
+        <button onclick="closeModal('authModal')" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <form onsubmit="handleAuthSubmit(event)" class="p-6 space-y-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Garage Email</label>
+          <input required type="email" id="authEmail" placeholder="garage@example.com" class="w-full p-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Password</label>
+          <input required type="password" id="authPassword" placeholder="••••••••" class="w-full p-2 border rounded-lg">
+        </div>
+        <button type="submit" id="authSubmitBtn" class="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow">Log In</button>
+        <div class="text-center text-xs text-gray-500">
+          <span id="authToggleText">Need a garage account?</span>
+          <button type="button" onclick="toggleAuthMode()" id="authToggleBtn" class="text-green-600 font-bold ml-1 hover:underline">Sign Up</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- POST CAR MODAL (FOR GARAGES) -->
   <div id="postModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
@@ -184,10 +209,16 @@
           <textarea required id="newNotes" rows="3" placeholder="Describe the fixes executed in your shop..." class="w-full p-2 border rounded-lg"></textarea>
         </div>
 
+        <!-- IMAGE UPLOAD FIELD -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Upload Vehicle Photo</label>
+          <input type="file" id="newImageFile" accept="image/*" class="w-full text-xs p-2 border rounded-lg bg-gray-50">
+        </div>
+
         <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
           <label class="flex items-start space-x-2">
             <input required type="checkbox" class="mt-0.5 rounded text-green-600 focus:ring-green-500">
-            <span><strong>Legal Ownership Declaration:</strong> I confirm this vehicle is fully owned by this garage or has been processed through statutory uncollected asset procedures.</span>
+            <span><strong>Legal Ownership Declaration:</strong> I confirm this vehicle is fully owned by this garage.</span>
           </label>
         </div>
 
@@ -203,9 +234,125 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let allCars = [];
+    let currentUser = null;
     let isMobileView = false;
+    let isSignUpMode = false;
+    let userCoords = { lat: 52.4068, lng: -1.5197 }; // Default Coventry coordinates
 
-    // FETCH CARS FROM DATABASE
+    // -------------------------------------------------------------
+    // 1. DYNAMIC DISTANCE CALCULATION VIA POSTCODES.IO API
+    // -------------------------------------------------------------
+    async function fetchPostcodeCoords(postcode) {
+      try {
+        const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode)}`);
+        const data = await res.json();
+        if (data.status === 200) {
+          return { lat: data.result.latitude, lng: data.result.longitude };
+        }
+      } catch (e) {
+        console.warn('Invalid postcode lookup:', postcode);
+      }
+      return null;
+    }
+
+    function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
+      const R = 3958.8; // Earth radius in miles
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return Math.round(R * c);
+    }
+
+    async function handlePostcodeChange() {
+      const postcode = document.getElementById('postcodeInput').value.trim();
+      if (!postcode) return;
+      const coords = await fetchPostcodeCoords(postcode);
+      if (coords) {
+        userCoords = coords;
+        applyFilters();
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 2. SUPABASE AUTHENTICATION
+    // -------------------------------------------------------------
+    async function initAuth() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      currentUser = session ? session.user : null;
+      renderAuthNav();
+
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        currentUser = session ? session.user : null;
+        renderAuthNav();
+        renderCars(allCars);
+      });
+    }
+
+    function renderAuthNav() {
+      const container = document.getElementById('authNavButtons');
+      if (currentUser) {
+        container.innerHTML = `
+          <button onclick="openPostModal()" class="bg-green-600 hover:bg-green-500 text-white font-medium text-xs md:text-sm px-3.5 py-1.5 rounded-lg flex items-center space-x-1.5 shadow transition">
+            <i class="fas fa-plus-circle"></i>
+            <span>Post Fixed Car</span>
+          </button>
+          <button onclick="handleLogout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">
+            Logout (${currentUser.email.split('@')[0]})
+          </button>
+        `;
+      } else {
+        container.innerHTML = `
+          <button onclick="openAuthModal()" class="bg-green-600 hover:bg-green-500 text-white font-medium text-xs md:text-sm px-3.5 py-1.5 rounded-lg transition">
+            Garage Login / Sign Up
+          </button>
+        `;
+      }
+    }
+
+    function openAuthModal() {
+      document.getElementById('authModal').classList.remove('hidden');
+    }
+
+    function toggleAuthMode() {
+      isSignUpMode = !isSignUpMode;
+      document.getElementById('authModalTitle').innerText = isSignUpMode ? "Garage Sign Up" : "Garage Login";
+      document.getElementById('authSubmitBtn').innerText = isSignUpMode ? "Create Account" : "Log In";
+      document.getElementById('authToggleText').innerText = isSignUpMode ? "Already have an account?" : "Need a garage account?";
+      document.getElementById('authToggleBtn').innerText = isSignUpMode ? "Log In" : "Sign Up";
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value;
+      const password = document.getElementById('authPassword').value;
+      const submitBtn = document.getElementById('authSubmitBtn');
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Processing...";
+
+      if (isSignUpMode) {
+        const { error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) alert(error.message);
+        else alert('Account created! You are now logged in.');
+      } else {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) alert(error.message);
+      }
+
+      submitBtn.disabled = false;
+      closeModal('authModal');
+    }
+
+    async function handleLogout() {
+      await supabaseClient.auth.signOut();
+    }
+
+    // -------------------------------------------------------------
+    // 3. STORAGE & DATABASE OPERATIONS
+    // -------------------------------------------------------------
     async function fetchCars() {
       const { data, error } = await supabaseClient
         .from('cars')
@@ -217,10 +364,123 @@
         return;
       }
 
+      // Compute dynamic distance for each car
+      for (let car of (data || [])) {
+        if (car.postcode) {
+          const coords = await fetchPostcodeCoords(car.postcode);
+          if (coords) {
+            car.computed_distance = calculateDistanceMiles(userCoords.lat, userCoords.lng, coords.lat, coords.lng);
+          } else {
+            car.computed_distance = car.distance_miles || 5;
+          }
+        } else {
+          car.computed_distance = 5;
+        }
+      }
+
       allCars = data || [];
       applyFilters();
     }
 
+    async function uploadPhoto(file) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `car-photos/${fileName}`;
+
+      const { error: uploadError } = await supabaseClient
+        .storage
+        .from('car-photos')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Photo upload error:', uploadError);
+        return null;
+      }
+
+      const { data } = supabaseClient
+        .storage
+        .from('car-photos')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    }
+
+    async function handleNewPost(e) {
+      e.preventDefault();
+      if (!currentUser) {
+        alert('Please log in to post a vehicle listing.');
+        openAuthModal();
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.innerText = "Publishing...";
+      submitBtn.disabled = true;
+
+      let imageUrl = "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80";
+      const imageFileInput = document.getElementById('newImageFile');
+      
+      if (imageFileInput.files.length > 0) {
+        const uploadedUrl = await uploadPhoto(imageFileInput.files[0]);
+        if (uploadedUrl) imageUrl = uploadedUrl;
+      }
+
+      const postcode = document.getElementById('newPostcode').value.toUpperCase();
+      const coords = await fetchPostcodeCoords(postcode);
+
+      const newCar = {
+        title: document.getElementById('newTitle').value,
+        price: parseInt(document.getElementById('newPrice').value),
+        fuel: document.getElementById('newFuel').value,
+        mileage: document.getElementById('newMileage').value,
+        postcode: postcode,
+        distance_miles: coords ? calculateDistanceMiles(userCoords.lat, userCoords.lng, coords.lat, coords.lng) : 5,
+        garage: "My Workshop Garage",
+        fixes: document.getElementById('newNotes').value,
+        image: imageUrl,
+        user_id: currentUser.id
+      };
+
+      const { error } = await supabaseClient
+        .from('cars')
+        .insert([newCar]);
+
+      submitBtn.innerText = "Publish Listing";
+      submitBtn.disabled = false;
+
+      if (error) {
+        alert('Error saving to database: ' + error.message);
+        return;
+      }
+
+      closeModal('postModal');
+      await fetchCars();
+      alert('Vehicle posted successfully!');
+    }
+
+    async function deleteCar(id, fromModal = false) {
+      if (!confirm('Are you sure you want to permanently delete this listing?')) return;
+
+      const { error } = await supabaseClient
+        .from('cars')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert('Failed to delete listing: ' + error.message);
+        return;
+      }
+
+      allCars = allCars.filter(c => c.id !== id);
+      applyFilters();
+
+      if (fromModal) closeModal('detailModal');
+      alert('Listing deleted');
+    }
+
+    // -------------------------------------------------------------
+    // UI RENDER & FILTER FUNCTIONS
+    // -------------------------------------------------------------
     function renderCars(carsToRender) {
       const grid = document.getElementById('carGrid');
       grid.innerHTML = '';
@@ -237,6 +497,7 @@
       }
 
       carsToRender.forEach(car => {
+        const canManage = currentUser && (car.user_id === currentUser.id || !car.user_id);
         const card = document.createElement('div');
         card.className = "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition flex flex-col";
         card.innerHTML = `
@@ -256,7 +517,7 @@
               <div class="flex items-center space-x-3 text-xs text-gray-500 mb-3">
                 <span><i class="fas fa-tachometer-alt mr-1 text-gray-400"></i>${car.mileage}</span>
                 <span>•</span>
-                <span><i class="fas fa-map-marker-alt mr-1 text-green-600"></i>${car.distance_miles || 5} miles away (${car.postcode})</span>
+                <span><i class="fas fa-map-marker-alt mr-1 text-green-600"></i>${car.computed_distance !== undefined ? car.computed_distance : 5} miles away (${car.postcode})</span>
               </div>
 
               <div class="bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-3 text-xs text-gray-700">
@@ -277,9 +538,11 @@
                 <button onclick="openDetailModal(${car.id})" class="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition">
                   View Inspection & Contact
                 </button>
-                <button onclick="deleteCar(${car.id})" class="w-28 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition">
-                  <i class="fas fa-trash-alt mr-1"></i> Delete
-                </button>
+                ${canManage ? `
+                  <button onclick="deleteCar(${car.id})" class="w-28 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition">
+                    <i class="fas fa-trash-alt mr-1"></i> Delete
+                  </button>
+                ` : ''}
               </div>
             </div>
           </div>
@@ -295,7 +558,7 @@
       const userPostcode = document.getElementById('postcodeInput').value.toUpperCase() || "CV1 2WT";
 
       const filtered = allCars.filter(car => {
-        const dist = car.distance_miles || 5;
+        const dist = car.computed_distance !== undefined ? car.computed_distance : 5;
         const matchesRadius = dist <= radius;
         const matchesFuel = (fuel === 'ALL') || (car.fuel === fuel);
         const matchesKeyword = (car.title && car.title.toLowerCase().includes(keyword)) || (car.fixes && car.fixes.toLowerCase().includes(keyword));
@@ -311,12 +574,15 @@
       document.getElementById('fuelSelect').value = "ALL";
       document.getElementById('keywordInput').value = "";
       document.getElementById('postcodeInput').value = "CV1 2WT";
+      userCoords = { lat: 52.4068, lng: -1.5197 };
       applyFilters();
     }
 
     function openDetailModal(id) {
       const car = allCars.find(c => c.id === id);
       if (!car) return;
+
+      const canManage = currentUser && (car.user_id === currentUser.id || !car.user_id);
 
       document.getElementById('modalTitle').innerText = car.title;
       document.getElementById('modalBody').innerHTML = `
@@ -337,15 +603,17 @@
         <div class="border-t pt-3 flex items-center justify-between">
           <div>
             <div class="font-bold text-gray-900">${car.garage || 'Verified Garage'}</div>
-            <div class="text-xs text-gray-500"><i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>${car.postcode} (${car.distance_miles || 5} miles away)</div>
+            <div class="text-xs text-gray-500"><i class="fas fa-map-marker-alt text-gray-400 mr-1"></i>${car.postcode} (${car.computed_distance !== undefined ? car.computed_distance : 5} miles away)</div>
           </div>
           <div class="flex items-center gap-2">
             <button onclick="alert('Connecting to Garage Phone: 024 7600 1122')" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-lg shadow">
               <i class="fas fa-phone-alt mr-1"></i> Call Garage
             </button>
-            <button onclick="deleteCar(${car.id}, true)" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-lg shadow">
-              <i class="fas fa-trash-alt mr-1"></i> Delete Listing
-            </button>
+            ${canManage ? `
+              <button onclick="deleteCar(${car.id}, true)" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-lg shadow">
+                <i class="fas fa-trash-alt mr-1"></i> Delete Listing
+              </button>
+            ` : ''}
           </div>
         </div>
       `;
@@ -353,70 +621,16 @@
     }
 
     function openPostModal() {
+      if (!currentUser) {
+        alert('Please log in or create a garage account to post listings.');
+        openAuthModal();
+        return;
+      }
       document.getElementById('postModal').classList.remove('hidden');
     }
 
     function closeModal(id) {
       document.getElementById(id).classList.add('hidden');
-    }
-
-    // DELETE CAR FROM SUPABASE
-    async function deleteCar(id, fromModal = false) {
-      if (!confirm('Are you sure you want to permanently delete this listing?')) return;
-
-      const { data, error } = await supabaseClient
-        .from('cars')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error('Error deleting car:', error);
-        alert('Failed to delete listing: ' + error.message);
-        return;
-      }
-
-      allCars = allCars.filter(c => c.id !== id);
-      applyFilters();
-
-      if (fromModal) closeModal('detailModal');
-
-      alert('Listing deleted');
-    }
-
-    // POST CAR DIRECTLY TO SUPABASE
-    async function handleNewPost(e) {
-      e.preventDefault();
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.innerText = "Publishing...";
-      submitBtn.disabled = true;
-
-      const newCar = {
-        title: document.getElementById('newTitle').value,
-        price: parseInt(document.getElementById('newPrice').value),
-        fuel: document.getElementById('newFuel').value,
-        mileage: document.getElementById('newMileage').value,
-        postcode: document.getElementById('newPostcode').value.toUpperCase(),
-        distance_miles: 5,
-        garage: "My Workshop Garage",
-        fixes: document.getElementById('newNotes').value,
-        image: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80"
-      };
-
-      const { data, error } = await supabaseClient
-        .from('cars')
-        .insert([newCar]);
-
-      submitBtn.innerText = "Publish Listing";
-      submitBtn.disabled = false;
-
-      if (error) {
-        alert('Error saving to database: ' + error.message);
-        return;
-      }
-
-      closeModal('postModal');
-      await fetchCars();
-      alert('Vehicle posted successfully and saved to database!');
     }
 
     function toggleMobileView() {
@@ -437,8 +651,11 @@
       }
     }
 
-    // INITIAL LOAD FROM SUPABASE
-    document.addEventListener('DOMContentLoaded', fetchCars);
+    // INITIALIZATION
+    document.addEventListener('DOMContentLoaded', () => {
+      initAuth();
+      fetchCars();
+    });
   </script>
 </body>
 </html>
