@@ -460,7 +460,7 @@
       applyFilters();
     }
 
-    async function handleNewPost(e) {
+async function handleNewPost(e) {
       e.preventDefault();
       if (!currentUser) {
         showToast('Please log in to post a vehicle listing.');
@@ -507,8 +507,7 @@
         distance_miles: coords ? calculateDistanceMiles(userCoords.lat, userCoords.lng, coords.lat, coords.lng) : 5,
         garage: "My Workshop Garage",
         fixes: document.getElementById('newNotes').value,
-        image: uploadedImageUrls[0],
-        images: uploadedImageUrls, // Note: Ensure 'images' column exists in Supabase table
+        image: uploadedImageUrls.join(','), // Packs multiple URLs into the existing 'image' column!
         user_id: currentUser.id
       };
 
@@ -564,7 +563,7 @@
 
       carsToRender.forEach(car => {
         const canManage = currentUser && (car.user_id === currentUser.id || !car.user_id);
-        const imagesList = (car.images && car.images.length > 0) ? car.images : [car.image || 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=600&q=80'];
+        const imagesList = car.image ? car.image.split(',') : ['https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=600&q=80'];
 
         const card = document.createElement('div');
         card.className = "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition flex flex-col";
@@ -684,7 +683,7 @@
       if (!car) return;
 
       const canManage = currentUser && (car.user_id === currentUser.id || !car.user_id);
-      const imagesList = (car.images && car.images.length > 0) ? car.images : [car.image || 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=600&q=80'];
+      const imagesList = car.image ? car.image.split(',') : ['https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=600&q=80'];
 
       document.getElementById('modalTitle').innerText = car.title;
       document.getElementById('modalBody').innerHTML = `
