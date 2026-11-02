@@ -99,16 +99,16 @@
         </div>
 
         <!-- Engine Type Filter -->
-        <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Fuel / Powertrain</label>
-          <select id="fuelSelect" onchange="applyFilters()" class="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none">
-            <option value="ALL">All Fuel Types</option>
-            <option value="Hybrid">Hybrid (e:HEV / PHEV)</option>
-            <option value="Petrol">Petrol</option>
-            <option value="Diesel">Diesel</option>
-            <option value="Electric">Electric</option>
-          </select>
-        </div>
+<div>
+  <label class="block text-xs font-semibold text-gray-600 mb-1">Fuel Type</label>
+  <select required id="newFuel" class="w-full p-2 border rounded-lg bg-white">
+    <option value="" disabled selected>-- Select Fuel --</option>
+    <option value="Hybrid">Hybrid</option>
+    <option value="Petrol">Petrol</option>
+    <option value="Diesel">Diesel</option>
+    <option value="Electric">Electric</option>
+  </select>
+</div>
 
         <!-- Keyword Search -->
         <div>
