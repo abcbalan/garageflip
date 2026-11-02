@@ -232,6 +232,45 @@
           </label>
         </div>
 
+<!-- EXPANDED SPECIFICATION FIELDS -->
+<div class="grid grid-cols-2 gap-3">
+  <div>
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Registration Plate (VRM)</label>
+    <input type="text" id="newVrm" placeholder="e.g. AB21 XYZ" class="w-full p-2 border rounded-lg uppercase">
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Year of Reg</label>
+    <input type="number" id="newYear" placeholder="2021" class="w-full p-2 border rounded-lg">
+  </div>
+</div>
+
+<div class="grid grid-cols-3 gap-3">
+  <div>
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Transmission</label>
+    <select id="newTransmission" class="w-full p-2 border rounded-lg">
+      <option value="Automatic">Automatic</option>
+      <option value="Manual">Manual</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-gray-600 mb-1">HPI / Category Status</label>
+    <select id="newHpiStatus" class="w-full p-2 border rounded-lg">
+      <option value="HPI Clear">HPI Clear</option>
+      <option value="Cat N">Cat N (Non-Structural)</option>
+      <option value="Cat S">Cat S (Structural Repair)</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-gray-600 mb-1">Warranty Included</label>
+    <select id="newWarranty" class="w-full p-2 border rounded-lg">
+      <option value="3 Months Included">3 Months Warranty</option>
+      <option value="6 Months Included">6 Months Warranty</option>
+      <option value="12 Months Included">12 Months Warranty</option>
+      <option value="None / Trade">None / Trade</option>
+    </select>
+  </div>
+</div>
+        
         <button type="submit" id="submitBtn" class="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow">Publish Listing</button>
       </form>
     </div>
