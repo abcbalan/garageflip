@@ -44,7 +44,7 @@
     <i class="fas fa-info-circle text-green-400 text-base"></i>
     <span id="toastMsg">Notification message</span>
   </div>
-
+  
   <!-- TOP DEPLOYMENT BAR -->
   <header class="bg-slate-900 text-white px-4 py-3 sticky top-0 z-50 shadow-md">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -224,6 +224,18 @@
       <i class="fas fa-search mr-1"></i> Auto-Fill
     </button>
   </div>
+</div>
+
+<!-- REGISTRATION LOOKUP ROW -->
+<div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3">
+  <label class="block text-xs font-semibold text-gray-700 mb-1">Enter Registration Plate (VRM)</label>
+  <div class="flex gap-2">
+    <input type="text" id="newVrm" placeholder="e.g. CV1 2WT" class="w-full p-2 border rounded-lg uppercase font-bold tracking-wider text-slate-900 bg-white">
+    <button type="button" onclick="lookupVehicleData()" id="vrmLookupBtn" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg transition flex items-center shrink-0 shadow">
+      <i class="fas fa-search mr-1.5 text-green-400"></i> Auto-Fill Details
+    </button>
+  </div>
+  <p class="text-[10px] text-gray-500 mt-1">Queries official UK DVLA records for instant make, fuel, & reg year auto-completion.</p>
 </div>
         
         <!-- MULTI IMAGE UPLOAD & REMOVABLE PREVIEW GRID -->
