@@ -172,13 +172,13 @@
   <!-- POST CAR MODAL (WITH REMOVABLE PHOTO PREVIEW GRID) -->
   <div id="postModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-      <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
-        <div>
-          <h3 class="font-bold text-lg">Post Fixed Car for Sale</h3>
-          <p class="text-xs text-gray-400">List an inspected vehicle repaired in your workshop</p>
-        </div>
-        <button onclick="closeModal('postModal')" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
-      </div>
+<div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+  <div>
+    <h3 id="postModalTitle" class="font-bold text-lg">Post Fixed Car for Sale</h3>
+    <p id="postModalSub" class="text-xs text-gray-400">List an inspected vehicle repaired in your workshop</p>
+  </div>
+  <button onclick="closeModal('postModal')" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+</div>
       <form onsubmit="handleNewPost(event)" class="p-6 overflow-y-auto space-y-4 text-sm">
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -247,8 +247,9 @@
     let currentUser = null;
     let isMobileView = false;
     let isSignUpMode = false;
+    let editingCarId = null; // Track if we are currently editing a car
     let userCoords = { lat: 52.4068, lng: -1.5197 };
-    let selectedFilesArray = []; // Holds active files staged for upload
+    let selectedFilesArray = [];
 
     function showToast(msg) {
       const toast = document.getElementById('appToast');
@@ -260,7 +261,6 @@
       }, 3500);
     }
 
-    // Handle file selection with removable previews
     function handleFileSelect(e) {
       const files = Array.from(e.target.files);
       selectedFilesArray = selectedFilesArray.concat(files);
@@ -281,21 +281,19 @@
         return;
       }
 
-      selectedFilesArray.forEach((file, idx) => {
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-          const div = document.createElement('div');
-          div.className = "relative h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 group";
-          div.innerHTML = `
-            <img src="${evt.target.result}" class="w-full h-full object-cover">
-            <button type="button" onclick="removeStagedPhoto(${idx})" class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow">
-              <i class="fas fa-times"></i>
-            </button>
-            <span class="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">#${idx + 1}</span>
-          `;
-          container.appendChild(div);
-        };
-        reader.readAsDataURL(file);
+      selectedFilesArray.forEach((item, idx) => {
+        // Handle both URL strings (during edits) and File objects (new uploads)
+        const imgSrc = typeof item === 'string' ? item : URL.createObjectURL(item);
+        const div = document.createElement('div');
+        div.className = "relative h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 group";
+        div.innerHTML = `
+          <img src="${imgSrc}" class="w-full h-full object-cover">
+          <button type="button" onclick="removeStagedPhoto(${idx})" class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow">
+            <i class="fas fa-times"></i>
+          </button>
+          <span class="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center py-0.5">#${idx + 1}</span>
+        `;
+        container.appendChild(div);
       });
     }
 
@@ -364,8 +362,21 @@
       const coords = await fetchPostcodeCoords(postcode);
       if (coords) {
         userCoords = coords;
-        applyFilters();
       }
+      // Re-calculate distances for all loaded cars based on new user coordinates
+      for (let car of allCars) {
+        if (car.postcode) {
+          const carCoords = await fetchPostcodeCoords(car.postcode);
+          if (carCoords) {
+            car.computed_distance = calculateDistanceMiles(userCoords.lat, userCoords.lng, carCoords.lat, carCoords.lng);
+          } else {
+            car.computed_distance = 5;
+          }
+        } else {
+          car.computed_distance = 5;
+        }
+      }
+      applyFilters();
     }
 
     async function initAuth() {
@@ -460,7 +471,7 @@
       applyFilters();
     }
 
-async function handleNewPost(e) {
+    async function handleNewPost(e) {
       e.preventDefault();
       if (!currentUser) {
         showToast('Please log in to post a vehicle listing.');
@@ -471,34 +482,36 @@ async function handleNewPost(e) {
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
 
-      let uploadedImageUrls = [];
+      let finalImageUrls = [];
 
-      if (selectedFilesArray.length > 0) {
-        submitBtn.innerText = `Uploading (${selectedFilesArray.length}) photos...`;
-        for (let i = 0; i < selectedFilesArray.length; i++) {
-          const compressed = await compressImage(selectedFilesArray[i]);
-          const fileExt = 'jpg';
-          const fileName = `${Math.random()}.${fileExt}`;
+      for (let item of selectedFilesArray) {
+        if (typeof item === 'string') {
+          // Already an uploaded URL kept during editing
+          finalImageUrls.push(item);
+        } else {
+          // Brand new file that needs compression and upload
+          const compressed = await compressImage(item);
+          const fileName = `${Math.random()}.jpg`;
           const filePath = `car-photos/${fileName}`;
 
           const { error: uploadError } = await supabaseClient.storage.from('car-photos').upload(filePath, compressed);
           if (!uploadError) {
             const { data } = supabaseClient.storage.from('car-photos').getPublicUrl(filePath);
-            if (data && data.publicUrl) uploadedImageUrls.push(data.publicUrl);
+            if (data && data.publicUrl) finalImageUrls.push(data.publicUrl);
           }
         }
       }
 
-      if (uploadedImageUrls.length === 0) {
-        uploadedImageUrls.push("https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80");
+      if (finalImageUrls.length === 0) {
+        finalImageUrls.push("https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80");
       }
 
-      submitBtn.innerText = "Publishing...";
+      submitBtn.innerText = editingCarId ? "Updating Listing..." : "Publishing...";
 
       const postcode = document.getElementById('newPostcode').value.toUpperCase();
       const coords = await fetchPostcodeCoords(postcode);
 
-      const newCar = {
+      const carData = {
         title: document.getElementById('newTitle').value,
         price: parseInt(document.getElementById('newPrice').value),
         fuel: document.getElementById('newFuel').value,
@@ -507,11 +520,20 @@ async function handleNewPost(e) {
         distance_miles: coords ? calculateDistanceMiles(userCoords.lat, userCoords.lng, coords.lat, coords.lng) : 5,
         garage: "My Workshop Garage",
         fixes: document.getElementById('newNotes').value,
-        image: uploadedImageUrls.join(','), // Packs multiple URLs into the existing 'image' column!
+        image: finalImageUrls.join(','),
         user_id: currentUser.id
       };
 
-      const { error } = await supabaseClient.from('cars').insert([newCar]);
+      let error;
+      if (editingCarId) {
+        // Update existing record
+        const res = await supabaseClient.from('cars').update(carData).eq('id', editingCarId);
+        error = res.error;
+      } else {
+        // Insert new record
+        const res = await supabaseClient.from('cars').insert([carData]);
+        error = res.error;
+      }
 
       submitBtn.innerText = "Publish Listing";
       submitBtn.disabled = false;
@@ -522,11 +544,36 @@ async function handleNewPost(e) {
       }
 
       closeModal('postModal');
+      editingCarId = null;
       selectedFilesArray = [];
       renderPhotoPreviews();
       document.getElementById('newImageFiles').value = '';
       await fetchCars();
-      showToast('Vehicle posted successfully!');
+      showToast(editingCarId ? 'Listing updated successfully!' : 'Vehicle posted successfully!');
+    }
+
+    function openEditModal(id) {
+      const car = allCars.find(c => c.id === id);
+      if (!car) return;
+
+      editingCarId = car.id;
+      document.getElementById('postModalTitle').innerText = "Edit Vehicle Listing";
+      document.getElementById('postModalSub').innerText = "Update details or modify uploaded photos";
+      document.getElementById('submitBtn').innerText = "Save Changes";
+
+      document.getElementById('newTitle').value = car.title || '';
+      document.getElementById('newPrice').value = car.price || '';
+      document.getElementById('newFuel').value = car.fuel || 'Hybrid';
+      document.getElementById('newMileage').value = car.mileage || '';
+      document.getElementById('newPostcode').value = car.postcode || '';
+      document.getElementById('newNotes').value = car.fixes || '';
+
+      // Load existing images into staging array
+      selectedFilesArray = car.image ? car.image.split(',') : [];
+      renderPhotoPreviews();
+
+      closeModal('detailModal');
+      document.getElementById('postModal').classList.remove('hidden');
     }
 
     async function deleteCar(id, fromModal = false) {
@@ -619,8 +666,11 @@ async function handleNewPost(e) {
                   View Inspection & Gallery
                 </button>
                 ${canManage ? `
-                  <button onclick="deleteCar(${car.id})" class="w-28 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition">
-                    <i class="fas fa-trash-alt mr-1"></i> Delete
+                  <button onclick="openEditModal(${car.id})" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition" title="Edit Listing">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button onclick="deleteCar(${car.id})" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition" title="Delete Listing">
+                    <i class="fas fa-trash-alt"></i>
                   </button>
                 ` : ''}
               </div>
@@ -722,7 +772,10 @@ async function handleNewPost(e) {
               <i class="fas fa-phone-alt mr-1"></i> Call Garage
             </button>
             ${canManage ? `
-              <button onclick="deleteCar(${car.id}, true)" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-lg shadow">
+              <button onclick="openEditModal(${car.id})" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow" title="Edit Listing">
+                <i class="fas fa-edit mr-1"></i> Edit
+              </button>
+              <button onclick="deleteCar(${car.id}, true)" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-lg shadow" title="Delete Listing">
                 <i class="fas fa-trash-alt mr-1"></i> Delete
               </button>
             ` : ''}
@@ -748,6 +801,17 @@ async function handleNewPost(e) {
         openAuthModal();
         return;
       }
+      editingCarId = null; // Clear editing state for a fresh post
+      document.getElementById('postModalTitle').innerText = "Post Fixed Car for Sale";
+      document.getElementById('postModalSub').innerText = "List an inspected vehicle repaired in your workshop";
+      document.getElementById('submitBtn').innerText = "Publish Listing";
+      
+      document.getElementById('newTitle').value = '';
+      document.getElementById('newPrice').value = '';
+      document.getElementById('newMileage').value = '';
+      document.getElementById('newPostcode').value = '';
+      document.getElementById('newNotes').value = '';
+      
       selectedFilesArray = [];
       renderPhotoPreviews();
       document.getElementById('postModal').classList.remove('hidden');
@@ -778,5 +842,6 @@ async function handleNewPost(e) {
       fetchCars();
     });
   </script>
+
 </body>
 </html>
