@@ -191,7 +191,7 @@
               <i class="fas fa-search mr-1.5 text-green-400"></i> Auto-Fill Details
             </button>
           </div>
-          <p class="text-[10px] text-gray-500 mt-1">Queries official UK DVLA records for instant make, fuel, & reg year auto-completion.</p>
+          <p class="text-[10px] text-gray-500 mt-1">Queries official UK records for instant make, fuel, & reg year auto-completion.</p>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -208,7 +208,8 @@
         <div class="grid grid-cols-3 gap-3">
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1">Fuel Type</label>
-            <select id="newFuel" class="w-full p-2 border rounded-lg">
+            <select required id="newFuel" class="w-full p-2 border rounded-lg bg-white">
+              <option value="" disabled selected>-- Select Fuel --</option>
               <option value="Hybrid">Hybrid</option>
               <option value="Petrol">Petrol</option>
               <option value="Diesel">Diesel</option>
@@ -225,17 +226,26 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Year of Reg</label>
+            <input type="number" id="newYear" placeholder="2021" class="w-full p-2 border rounded-lg">
+          </div>
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1">Transmission</label>
-            <select id="newTransmission" class="w-full p-2 border rounded-lg">
+            <select required id="newTransmission" class="w-full p-2 border rounded-lg bg-white">
+              <option value="" disabled selected>-- Select --</option>
               <option value="Automatic">Automatic</option>
               <option value="Manual">Manual</option>
             </select>
           </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1">HPI / Category Status</label>
-            <select id="newHpiStatus" class="w-full p-2 border rounded-lg">
+            <select required id="newHpiStatus" class="w-full p-2 border rounded-lg bg-white">
+              <option value="" disabled selected>-- Select --</option>
               <option value="HPI Clear">HPI Clear</option>
               <option value="Cat N">Cat N (Non-Structural)</option>
               <option value="Cat S">Cat S (Structural Repair)</option>
@@ -243,7 +253,8 @@
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1">Warranty Included</label>
-            <select id="newWarranty" class="w-full p-2 border rounded-lg">
+            <select required id="newWarranty" class="w-full p-2 border rounded-lg bg-white">
+              <option value="" disabled selected>-- Select --</option>
               <option value="3 Months Included">3 Months Warranty</option>
               <option value="6 Months Included">6 Months Warranty</option>
               <option value="12 Months Included">12 Months Warranty</option>
@@ -642,7 +653,7 @@ function capitalizeWord(str) {
       applyFilters();
     }
 
-    async function handleNewPost(e) {
+async function handleNewPost(e) {
       e.preventDefault();
       if (!currentUser) {
         showToast('Please log in to post a vehicle listing.');
@@ -690,7 +701,12 @@ function capitalizeWord(str) {
         garage: "My Workshop Garage",
         fixes: document.getElementById('newNotes').value,
         image: finalImageUrls.join(','),
-        user_id: currentUser.id
+        user_id: currentUser.id,
+        vrm: document.getElementById('newVrm').value.toUpperCase(),
+        year: document.getElementById('newYear').value ? parseInt(document.getElementById('newYear').value) : null,
+        transmission: document.getElementById('newTransmission').value,
+        hpi_status: document.getElementById('newHpiStatus').value,
+        warranty: document.getElementById('newWarranty').value
       };
 
       let error;
@@ -730,10 +746,15 @@ function capitalizeWord(str) {
 
       document.getElementById('newTitle').value = car.title || '';
       document.getElementById('newPrice').value = car.price || '';
-      document.getElementById('newFuel').value = car.fuel || 'Hybrid';
+      document.getElementById('newFuel').value = car.fuel || '';
       document.getElementById('newMileage').value = car.mileage || '';
       document.getElementById('newPostcode').value = car.postcode || '';
       document.getElementById('newNotes').value = car.fixes || '';
+      document.getElementById('newVrm').value = car.vrm || '';
+      document.getElementById('newYear').value = car.year || '';
+      document.getElementById('newTransmission').value = car.transmission || '';
+      document.getElementById('newHpiStatus').value = car.hpi_status || '';
+      document.getElementById('newWarranty').value = car.warranty || '';
 
       selectedFilesArray = car.image ? car.image.split(',') : [];
       renderPhotoPreviews();
